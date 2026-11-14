@@ -57,7 +57,7 @@ class AnswerServiceImplTest {
         givenModelReplies("{\"answer\": \"Within 72 hours.\", \"articles\": [33, 32]}");
 
         // When
-        AnswerResponse answerResponse = answerService.answer("test question");
+        AnswerResponse answerResponse = answerService.answer("test question").response();
 
         // Then
         assertEquals(1, answerResponse.sources().size());
@@ -71,7 +71,7 @@ class AnswerServiceImplTest {
         givenModelReplies("{\"answer\": \"Paris.\", \"articles\": [99]}");
 
         // When
-        AnswerResponse answerResponse = answerService.answer("test question");
+        AnswerResponse answerResponse = answerService.answer("test question").response();
 
         // Then
         assertEquals(AnswerServiceImpl.NOT_COVERED_ANSWER, answerResponse.answer());
@@ -85,7 +85,7 @@ class AnswerServiceImplTest {
         givenModelReplies("{\"answer\": \"Within 72 hours.\", \"articles\": [33]}");
 
         // When
-        AnswerResponse answerResponse = answerService.answer("test question");
+        AnswerResponse answerResponse = answerService.answer("test question").response();
 
         // Then
         assertEquals("Within 72 hours.", answerResponse.answer());

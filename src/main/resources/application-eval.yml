@@ -1,0 +1,4 @@
+# Active only with the "eval" profile: no web server, so the eval runs, writes its report and exits.
+spring:
+  main:
+    web-application-type: none

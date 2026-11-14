@@ -1,0 +1,22 @@
+[
+  {"id": 1, "type": "direct", "question": "How long does a controller have to notify the supervisory authority of a personal data breach?", "expected": [{"document": "GDPR", "article": 33}]},
+  {"id": 2, "type": "direct", "question": "When does a data subject have the right to have their personal data erased?", "expected": [{"document": "GDPR", "article": 17}]},
+  {"id": 3, "type": "direct", "question": "What does the right to data portability allow a data subject to do?", "expected": [{"document": "GDPR", "article": 20}]},
+  {"id": 4, "type": "direct", "question": "What are the conditions for valid consent?", "expected": [{"document": "GDPR", "article": 7}]},
+  {"id": 5, "type": "direct", "question": "What are the lawful bases for processing personal data?", "expected": [{"document": "GDPR", "article": 6}]},
+  {"id": 6, "type": "direct", "question": "When must a controller designate a data protection officer?", "expected": [{"document": "GDPR", "article": 37}]},
+  {"id": 7, "type": "direct", "question": "What is the maximum administrative fine for infringing the basic principles for processing?", "expected": [{"document": "GDPR", "article": 83}]},
+  {"id": 8, "type": "direct", "question": "What information must be provided when personal data are collected from the data subject?", "expected": [{"document": "GDPR", "article": 13}]},
+  {"id": 9, "type": "direct", "question": "When must a controller carry out a data protection impact assessment?", "expected": [{"document": "GDPR", "article": 35}]},
+  {"id": 10, "type": "direct", "question": "What must a contract between a controller and a processor contain?", "expected": [{"document": "GDPR", "article": 28}]},
+  {"id": 11, "type": "direct", "question": "When must a personal data breach be communicated to the data subject?", "expected": [{"document": "GDPR", "article": 34}]},
+  {"id": 12, "type": "direct", "question": "What are the principles relating to processing of personal data?", "expected": [{"document": "GDPR", "article": 5}]},
+  {"id": 13, "type": "direct", "question": "When can personal data be transferred to a third country on the basis of an adequacy decision?", "expected": [{"document": "GDPR", "article": 45}]},
+  {"id": 14, "type": "direct", "question": "From what age can a child consent to information society services?", "expected": [{"document": "GDPR", "article": 8}]},
+  {"id": 15, "type": "reworded", "question": "Can I make a company tell me what information they hold about me?", "expected": [{"document": "GDPR", "article": 15}]},
+  {"id": 16, "type": "reworded", "question": "Do I have to keep a log of what my company does with customer data?", "expected": [{"document": "GDPR", "article": 30}]},
+  {"id": 17, "type": "reworded", "question": "Can a company decide about me using only an algorithm, without a human involved?", "expected": [{"document": "GDPR", "article": 22}]},
+  {"id": 18, "type": "reworded", "question": "Who can I complain to if a company misuses my personal data?", "expected": [{"document": "GDPR", "article": 77}]},
+  {"id": 19, "type": "uncovered", "question": "What is the capital of France?", "expected": []},
+  {"id": 20, "type": "uncovered", "question": "How much VAT must an online shop charge customers in Germany?", "expected": []}
+]

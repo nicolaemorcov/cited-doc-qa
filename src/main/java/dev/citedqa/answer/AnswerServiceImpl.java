@@ -58,7 +58,7 @@ public class AnswerServiceImpl implements AnswerService {
     }
 
     @Override
-    public AnswerResponse answer(String question) {
+    public AnswerResult answer(String question) {
         long startNanos = System.nanoTime();
         String requestId = UUID.randomUUID().toString();
         List<Article> articles = retrievalService.search(question);
@@ -78,28 +78,31 @@ public class AnswerServiceImpl implements AnswerService {
         AnswerResponse answerResponse = sources.isEmpty()
                 ? new AnswerResponse(requestId, NOT_COVERED_ANSWER, List.of())
                 : new AnswerResponse(requestId, modelAnswer.answer(), sources);
-        logCost(requestId, responseEntity.response(), citedArticles, startNanos);
-        return answerResponse;
+        Usage usage = responseEntity.response() == null ? null : responseEntity.response().getMetadata().getUsage();
+        boolean usageReported = usage != null && !(usage instanceof EmptyUsage);
+        Integer promptTokens = usageReported ? usage.getPromptTokens() : null;
+        Integer completionTokens = usageReported ? usage.getCompletionTokens() : null;
+        BigDecimal costEur = promptTokens == null || completionTokens == null
+                ? null
+                : costCalculator.cost(promptTokens, completionTokens);
+        logCost(requestId, promptTokens, completionTokens, costEur, citedArticles, startNanos);
+        return new AnswerResult(answerResponse, articles, promptTokens, completionTokens, costEur);
     }
 
     /**
      * Logs one line per request. Never logs the question text. Spring AI reports
-     * missing token counts as EmptyUsage (zeros), so that case is detected explicitly
-     * and logged at WARN with an unknown cost instead of a false zero.
+     * missing token counts as EmptyUsage (zeros), so a null cost here means the
+     * provider reported no usage; that is logged at WARN instead of a false zero.
      */
-    private void logCost(String requestId, ChatResponse chatResponse, List<Article> citedArticles, long startNanos) {
+    private void logCost(String requestId, Integer promptTokens, Integer completionTokens, BigDecimal costEur,
+                         List<Article> citedArticles, long startNanos) {
         long latencyMs = (System.nanoTime() - startNanos) / 1_000_000;
         List<Integer> articleNumbers = citedArticles.stream().map(Article::number).toList();
-        Usage usage = chatResponse == null ? null : chatResponse.getMetadata().getUsage();
-        boolean usageReported = usage != null && !(usage instanceof EmptyUsage);
-        Integer promptTokens = usageReported ? usage.getPromptTokens() : null;
-        Integer completionTokens = usageReported ? usage.getCompletionTokens() : null;
-        if (promptTokens == null || completionTokens == null) {
+        if (costEur == null) {
             log.warn("requestId={}, promptTokens=unknown, completionTokens=unknown, costEur=unknown, latencyMs={}, sources={}",
                     requestId, latencyMs, articleNumbers);
             return;
         }
-        BigDecimal costEur = costCalculator.cost(promptTokens, completionTokens);
         log.info("requestId={}, promptTokens={}, completionTokens={}, costEur={}, latencyMs={}, sources={}",
                 requestId, promptTokens, completionTokens, costEur.toPlainString(), latencyMs, articleNumbers);
     }

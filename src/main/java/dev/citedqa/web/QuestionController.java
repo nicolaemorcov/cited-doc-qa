@@ -20,6 +20,6 @@ public class QuestionController {
 
     @PostMapping
     public ResponseEntity<AnswerResponse> ask(@Valid @RequestBody QuestionRequest questionRequest) {
-        return ResponseEntity.ok(answerService.answer(questionRequest.question()));
+        return ResponseEntity.ok(answerService.answer(questionRequest.question()).response());
     }
 }

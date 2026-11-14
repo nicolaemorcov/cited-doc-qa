@@ -5,7 +5,7 @@ spring:
     mistralai:
       api-key: ${MISTRAL_API_KEY}
       embedding:
-        model: mistral-embed
+        model: mistral-embed-2312
       chat:
         model: mistral-small-2603
         temperature: 0.0
