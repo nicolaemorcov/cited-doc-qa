@@ -82,7 +82,7 @@ Confirm them in the Spring AI 2.0.2 reference before use; do not guess.
 - `@RestController`, `@Service`, `@Repository`; never a generic `@Component` for these layers.
 - Controllers return `ResponseEntity<T>`.
 - Errors handled in one `@RestControllerAdvice` with `@ExceptionHandler`.
-- Tests: JUnit 5 + Mockito only; `// Given`, `// When`, `// Then` in every test; descriptive names such as `shouldMaskEmailBeforeProviderCall`; service tests use `@ExtendWith(MockitoExtension.class)`.
+- Tests: JUnit (Jupiter, version managed by Spring Boot) + Mockito only; `// Given`, `// When`, `// Then` in every test; descriptive names such as `shouldMaskEmailBeforeProviderCall`; service tests use `@ExtendWith(MockitoExtension.class)`.
 
 ### Package layout
 
