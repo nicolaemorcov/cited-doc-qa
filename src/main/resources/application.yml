@@ -10,6 +10,13 @@ spring:
         model: mistral-small-2603
         temperature: 0.0
 
+citedqa:
+  pricing:
+    # Mistral console, organization price catalog, read 2026-11-14 (EUR per 1M tokens, mistral-small-2603)
+    chat:
+      input-per-million-eur: 0.13
+      output-per-million-eur: 0.51
+
 management:
   endpoints:
     web:

@@ -1,5 +1,6 @@
 package dev.citedqa.answer;
 
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -7,15 +8,24 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import dev.citedqa.corpus.Article;
+import dev.citedqa.cost.CostCalculator;
 import dev.citedqa.retrieval.RetrievalService;
 import dev.citedqa.web.AnswerResponse;
 import dev.citedqa.web.Source;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.AdvisorParams;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.ResponseEntity;
+import org.springframework.ai.chat.metadata.EmptyUsage;
+import org.springframework.ai.chat.metadata.Usage;
+import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.stereotype.Service;
 
 @Service
 public class AnswerServiceImpl implements AnswerService {
+
+    private static final Logger log = LoggerFactory.getLogger(AnswerServiceImpl.class);
 
     static final String NOT_COVERED_ANSWER =
             "The document does not cover this question.";
@@ -38,32 +48,60 @@ public class AnswerServiceImpl implements AnswerService {
 
     private final RetrievalService retrievalService;
     private final ChatClient chatClient;
+    private final CostCalculator costCalculator;
 
-    public AnswerServiceImpl(RetrievalService retrievalService, ChatClient.Builder chatClientBuilder) {
+    public AnswerServiceImpl(RetrievalService retrievalService, ChatClient.Builder chatClientBuilder,
+                             CostCalculator costCalculator) {
         this.retrievalService = retrievalService;
         this.chatClient = chatClientBuilder.build();
+        this.costCalculator = costCalculator;
     }
 
     @Override
     public AnswerResponse answer(String question) {
+        long startNanos = System.nanoTime();
         String requestId = UUID.randomUUID().toString();
         List<Article> articles = retrievalService.search(question);
 
-        ModelAnswer modelAnswer = chatClient.prompt()
+        ResponseEntity<ChatResponse, ModelAnswer> responseEntity = chatClient.prompt()
                 .advisors(AdvisorParams.ENABLE_NATIVE_STRUCTURED_OUTPUT)
                 .system(SYSTEM_PROMPT)
                 .user(userSpec -> userSpec.text(USER_TEMPLATE)
                         .param("articles", formatArticles(articles))
                         .param("question", question))
                 .call()
-                .responseEntity(ModelAnswer.class)
-                .entity();
+                .responseEntity(ModelAnswer.class);
+        ModelAnswer modelAnswer = responseEntity.entity();
 
-        List<Source> sources = validSources(modelAnswer, articles);
-        if (sources.isEmpty()) {
-            return new AnswerResponse(requestId, NOT_COVERED_ANSWER, List.of());
+        List<Article> citedArticles = validCitedArticles(modelAnswer, articles);
+        List<Source> sources = citedArticles.stream().map(this::toSource).toList();
+        AnswerResponse answerResponse = sources.isEmpty()
+                ? new AnswerResponse(requestId, NOT_COVERED_ANSWER, List.of())
+                : new AnswerResponse(requestId, modelAnswer.answer(), sources);
+        logCost(requestId, responseEntity.response(), citedArticles, startNanos);
+        return answerResponse;
+    }
+
+    /**
+     * Logs one line per request. Never logs the question text. Spring AI reports
+     * missing token counts as EmptyUsage (zeros), so that case is detected explicitly
+     * and logged at WARN with an unknown cost instead of a false zero.
+     */
+    private void logCost(String requestId, ChatResponse chatResponse, List<Article> citedArticles, long startNanos) {
+        long latencyMs = (System.nanoTime() - startNanos) / 1_000_000;
+        List<Integer> articleNumbers = citedArticles.stream().map(Article::number).toList();
+        Usage usage = chatResponse == null ? null : chatResponse.getMetadata().getUsage();
+        boolean usageReported = usage != null && !(usage instanceof EmptyUsage);
+        Integer promptTokens = usageReported ? usage.getPromptTokens() : null;
+        Integer completionTokens = usageReported ? usage.getCompletionTokens() : null;
+        if (promptTokens == null || completionTokens == null) {
+            log.warn("requestId={}, promptTokens=unknown, completionTokens=unknown, costEur=unknown, latencyMs={}, sources={}",
+                    requestId, latencyMs, articleNumbers);
+            return;
         }
-        return new AnswerResponse(requestId, modelAnswer.answer(), sources);
+        BigDecimal costEur = costCalculator.cost(promptTokens, completionTokens);
+        log.info("requestId={}, promptTokens={}, completionTokens={}, costEur={}, latencyMs={}, sources={}",
+                requestId, promptTokens, completionTokens, costEur.toPlainString(), latencyMs, articleNumbers);
     }
 
     /**
@@ -79,7 +117,7 @@ public class AnswerServiceImpl implements AnswerService {
      * Keeps only cited numbers that were among the retrieved articles, in the
      * order the model cited them, without duplicates.
      */
-    private List<Source> validSources(ModelAnswer modelAnswer, List<Article> articles) {
+    private List<Article> validCitedArticles(ModelAnswer modelAnswer, List<Article> articles) {
         if (modelAnswer == null || modelAnswer.articles() == null) {
             return List.of();
         }
@@ -90,7 +128,7 @@ public class AnswerServiceImpl implements AnswerService {
         return modelAnswer.articles().stream()
                 .distinct()
                 .filter(retrievedByNumber::containsKey)
-                .map(number -> toSource(retrievedByNumber.get(number)))
+                .map(retrievedByNumber::get)
                 .toList();
     }
 

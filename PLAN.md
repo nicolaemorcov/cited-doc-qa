@@ -60,7 +60,7 @@ Confirm them in the Spring AI 2.0.2 reference before use; do not guess.
 - Properties: `spring.ai.mistralai.api-key`, `spring.ai.mistralai.chat.model`, `spring.ai.mistralai.embedding.model`
   (checked in 2.0.2 on 2026-11-14; the older `...chat.options.model` / `...embedding.options.model` are deprecated)
 - Token usage: `ChatResponse.getMetadata().getUsage()` **(verify)**
-- Model names and prices: read them from Mistral's current pricing page; put them in `application.yml`, never in code.
+- Model names and prices: read prices (EUR) from the organization price catalog in the Mistral console; put them in `application.yml`, never in code.
 
 ## 4. Rules for Claude Code
 
@@ -232,10 +232,13 @@ is the step that most affects the final score.
 
 **Build**
 - `application.yml`: price per 1 million input tokens and per 1 million output tokens for the chat model,
-  taken from Mistral's pricing page, with the date they were read as a comment.
+  in EUR, taken from the organization price catalog in the Mistral console (what the account is billed),
+  with the date they were read as a comment.
 - `CostCalculator` (plain Java, `BigDecimal`): tokens x price.
 - After each chat call, log one line:
-  `requestId, promptTokens, completionTokens, costUsd, latencyMs, sources=[33]`.
+  `requestId, promptTokens, completionTokens, costEur, latencyMs, sources=[33]`.
+  `latencyMs` covers the whole request (search, chat call, validation). If the provider returns no token
+  counts, the line is logged at WARN with `costEur=unknown`.
 - Unit test for the calculator.
 
 **Done when**

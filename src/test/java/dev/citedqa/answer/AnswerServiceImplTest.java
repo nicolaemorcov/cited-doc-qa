@@ -6,9 +6,12 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import dev.citedqa.corpus.Article;
+import dev.citedqa.cost.CostCalculator;
+import dev.citedqa.cost.CostCalculatorImpl;
 import dev.citedqa.retrieval.RetrievalService;
 import dev.citedqa.web.AnswerResponse;
 import dev.citedqa.web.Source;
@@ -43,7 +46,8 @@ class AnswerServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        answerService = new AnswerServiceImpl(retrievalService, ChatClient.builder(chatModel));
+        CostCalculator costCalculator = new CostCalculatorImpl(new BigDecimal("0.13"), new BigDecimal("0.51"));
+        answerService = new AnswerServiceImpl(retrievalService, ChatClient.builder(chatModel), costCalculator);
     }
 
     @Test
