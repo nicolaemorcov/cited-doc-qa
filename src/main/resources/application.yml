@@ -6,6 +6,9 @@ spring:
       api-key: ${MISTRAL_API_KEY}
       embedding:
         model: mistral-embed
+      chat:
+        model: mistral-small-2603
+        temperature: 0.0
 
 management:
   endpoints:
