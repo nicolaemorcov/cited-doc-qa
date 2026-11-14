@@ -1,6 +1,11 @@
 spring:
   application:
     name: cited-doc-qa
+  ai:
+    mistralai:
+      api-key: ${MISTRAL_API_KEY}
+      embedding:
+        model: mistral-embed
 
 management:
   endpoints:

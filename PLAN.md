@@ -57,7 +57,8 @@ Names below marked **(verify)** come from Spring AI documentation as of mid-2026
 Confirm them in the Spring AI 2.0.2 reference before use; do not guess.
 
 - Starter: `spring-ai-starter-model-mistral-ai` **(verify)**
-- Properties: `spring.ai.mistralai.api-key`, `spring.ai.mistralai.chat.options.model` **(verify)**
+- Properties: `spring.ai.mistralai.api-key`, `spring.ai.mistralai.chat.model`, `spring.ai.mistralai.embedding.model`
+  (checked in 2.0.2 on 2026-11-14; the older `...chat.options.model` / `...embedding.options.model` are deprecated)
 - Token usage: `ChatResponse.getMetadata().getUsage()` **(verify)**
 - Model names and prices: read them from Mistral's current pricing page; put them in `application.yml`, never in code.
 
