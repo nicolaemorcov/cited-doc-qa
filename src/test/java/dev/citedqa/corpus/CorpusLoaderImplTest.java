@@ -13,7 +13,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class CorpusLoaderImplTest {
 
-    private final CorpusLoader corpusLoader = new CorpusLoaderImpl();
+    private static final String START_MARKER = "HAVE ADOPTED THIS REGULATION:";
+    private static final String END_MARKER_PREFIX = "This Regulation shall be binding in its entirety";
+    private static final DocumentSource GDPR_SOURCE = new DocumentSource("GDPR", "corpus/gdpr-en.txt",
+            START_MARKER, END_MARKER_PREFIX, "CHAPTER [IVXLC]+|Section \\d+");
+    private static final DocumentSource AI_ACT_SOURCE = new DocumentSource("AI Act", "corpus/ai-act-en.txt",
+            START_MARKER, END_MARKER_PREFIX, "CHAPTER [IVXLC]+|SECTION \\d+");
+
+    private final CorpusLoader corpusLoader = new CorpusLoaderImpl(new CorpusProperties(List.of(GDPR_SOURCE)));
+    private final CorpusLoader aiActCorpusLoader = new CorpusLoaderImpl(new CorpusProperties(List.of(AI_ACT_SOURCE)));
 
     @Test
     void shouldReturn99ArticlesNumbered1To99WithoutGaps() {
@@ -77,6 +85,60 @@ class CorpusLoaderImplTest {
         assertFalse(articles.isEmpty());
         for (Article article : articles) {
             assertFalse(article.text().isBlank(), "Article " + article.number() + " has empty text");
+        }
+    }
+
+    @Test
+    void shouldReturn113AiActArticlesNumbered1To113WithoutGaps() {
+        // Given
+        int expectedCount = 113;
+
+        // When
+        List<Article> articles = aiActCorpusLoader.load();
+
+        // Then
+        assertEquals(expectedCount, articles.size());
+        for (int index = 0; index < articles.size(); index++) {
+            assertEquals(index + 1, articles.get(index).number());
+            assertEquals("AI Act", articles.get(index).document());
+        }
+    }
+
+    @Test
+    void shouldTitleAiActArticle5ProhibitedAiPractices() {
+        // Given
+        int articleNumber = 5;
+
+        // When
+        Article article = findArticle(aiActCorpusLoader.load(), articleNumber);
+
+        // Then
+        assertEquals("Prohibited AI practices", article.title());
+    }
+
+    @Test
+    void shouldTitleAiActArticle113EntryIntoForceAndApplication() {
+        // Given
+        int articleNumber = 113;
+
+        // When
+        Article article = findArticle(aiActCorpusLoader.load(), articleNumber);
+
+        // Then
+        assertEquals("Entry into force and application", article.title());
+    }
+
+    @Test
+    void shouldReturnNoAiActArticleWithEmptyText() {
+        // Given: the AI Act corpus file on the classpath
+
+        // When
+        List<Article> articles = aiActCorpusLoader.load();
+
+        // Then
+        assertFalse(articles.isEmpty());
+        for (Article article : articles) {
+            assertFalse(article.text().isBlank(), "AI Act Article " + article.number() + " has empty text");
         }
     }
 

@@ -11,6 +11,19 @@ spring:
         temperature: 0.0
 
 citedqa:
+  corpus:
+    # Parser rules per document. Section headings differ: GDPR "Section 1", AI Act "SECTION 1".
+    documents:
+      - name: GDPR
+        resource: corpus/gdpr-en.txt
+        start-marker: "HAVE ADOPTED THIS REGULATION:"
+        end-marker-prefix: "This Regulation shall be binding in its entirety"
+        division-heading: 'CHAPTER [IVXLC]+|Section \d+'
+      - name: AI Act
+        resource: corpus/ai-act-en.txt
+        start-marker: "HAVE ADOPTED THIS REGULATION:"
+        end-marker-prefix: "This Regulation shall be binding in its entirety"
+        division-heading: 'CHAPTER [IVXLC]+|SECTION \d+'
   pricing:
     # Mistral console, organization price catalog, read 2026-11-14 (EUR per 1M tokens, mistral-small-2603)
     chat:

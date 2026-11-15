@@ -4,7 +4,7 @@ import java.util.List;
 
 /**
  * The structured reply the chat model must return: the answer text and the
- * numbers of the articles it says it used. The numbers are checked before use.
+ * document and article of each source it says it used. The sources are checked before use.
  */
-public record ModelAnswer(String answer, List<Integer> articles) {
+public record ModelAnswer(String answer, List<Citation> sources) {
 }

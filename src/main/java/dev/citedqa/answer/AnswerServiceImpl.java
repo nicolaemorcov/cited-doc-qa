@@ -32,11 +32,13 @@ public class AnswerServiceImpl implements AnswerService {
             "The document does not cover this question.";
 
     private static final String SYSTEM_PROMPT = """
-            You answer questions about a legal document using only the articles in the user message.
+            You answer questions about legal documents using only the articles in the user message.
+            Each article is labelled [document, Article number].
             Rules:
             1. Use only the text of those articles. Do not use outside knowledge.
-            2. In "articles", list the numbers of the articles your answer is based on.
-            3. If the articles do not answer the question, say so in "answer" and return an empty "articles" list.
+            2. In "sources", list each article your answer is based on: "document" exactly as written in its label,
+               and "article" as its number.
+            3. If the articles do not answer the question, say so in "answer" and return an empty "sources" list.
             """;
 
     private static final String USER_TEMPLATE = """
@@ -105,41 +107,45 @@ public class AnswerServiceImpl implements AnswerService {
     private void logCost(String requestId, Integer promptTokens, Integer completionTokens, BigDecimal costEur,
                          List<Article> citedArticles, long startNanos) {
         long latencyMs = (System.nanoTime() - startNanos) / 1_000_000;
-        List<Integer> articleNumbers = citedArticles.stream().map(Article::number).toList();
+        List<String> sourceLabels = citedArticles.stream()
+                .map(article -> article.document() + " " + article.number())
+                .toList();
         if (costEur == null) {
             log.warn("requestId={}, promptTokens=unknown, completionTokens=unknown, costEur=unknown, latencyMs={}, sources={}",
-                    requestId, latencyMs, articleNumbers);
+                    requestId, latencyMs, sourceLabels);
             return;
         }
         log.info("requestId={}, promptTokens={}, completionTokens={}, costEur={}, latencyMs={}, sources={}",
-                requestId, promptTokens, completionTokens, costEur.toPlainString(), latencyMs, articleNumbers);
+                requestId, promptTokens, completionTokens, costEur.toPlainString(), latencyMs, sourceLabels);
     }
 
     /**
-     * Labels each article with its number and title so the model can cite it.
+     * Labels each article with its document, number and title so the model can cite it.
      */
     private String formatArticles(List<Article> articles) {
         return articles.stream()
-                .map(article -> "[Article " + article.number() + "] " + article.title() + "\n" + article.text())
+                .map(article -> "[" + article.document() + ", Article " + article.number() + "] "
+                        + article.title() + "\n" + article.text())
                 .collect(Collectors.joining("\n\n"));
     }
 
     /**
-     * Keeps only cited numbers that were among the retrieved articles, in the
-     * order the model cited them, without duplicates.
+     * Keeps only cited sources that were among the retrieved articles, matching on
+     * both document and article number, in the order the model cited them, without duplicates.
+     * Returns an empty list when the model gave no sources.
      */
     private List<Article> validCitedArticles(ModelAnswer modelAnswer, List<Article> articles) {
-        if (modelAnswer == null || modelAnswer.articles() == null) {
+        if (modelAnswer == null || modelAnswer.sources() == null) {
             return List.of();
         }
-        Map<Integer, Article> retrievedByNumber = new HashMap<>();
+        Map<Citation, Article> retrievedByCitation = new HashMap<>();
         for (Article article : articles) {
-            retrievedByNumber.put(article.number(), article);
+            retrievedByCitation.put(new Citation(article.document(), article.number()), article);
         }
-        return modelAnswer.articles().stream()
+        return modelAnswer.sources().stream()
                 .distinct()
-                .filter(retrievedByNumber::containsKey)
-                .map(retrievedByNumber::get)
+                .filter(retrievedByCitation::containsKey)
+                .map(retrievedByCitation::get)
                 .toList();
     }
 

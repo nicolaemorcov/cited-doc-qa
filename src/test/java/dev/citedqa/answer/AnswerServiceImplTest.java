@@ -39,6 +39,8 @@ class AnswerServiceImplTest {
             "Notification of a personal data breach to the supervisory authority", "body 33");
     private static final Article ARTICLE_34 = new Article("GDPR", 34,
             "Communication of a personal data breach to the data subject", "body 34");
+    private static final Article AI_ACT_ARTICLE_5 = new Article("AI Act", 5,
+            "Prohibited AI practices", "body AI Act 5");
 
     @Mock
     private RetrievalService retrievalService;
@@ -59,7 +61,7 @@ class AnswerServiceImplTest {
     void shouldMaskEmailBeforeEmbeddingAndChatCalls() {
         // Given
         when(retrievalService.search(anyString())).thenReturn(List.of(ARTICLE_33, ARTICLE_34));
-        givenModelReplies("{\"answer\": \"Within 72 hours.\", \"articles\": [33]}");
+        givenModelReplies("{\"answer\": \"Within 72 hours.\", \"sources\": [{\"document\": \"GDPR\", \"article\": 33}]}");
         String email = "ana.rusu@example.md";
 
         // When
@@ -82,7 +84,8 @@ class AnswerServiceImplTest {
     void shouldDropCitedArticleThatWasNotRetrieved() {
         // Given
         when(retrievalService.search(anyString())).thenReturn(List.of(ARTICLE_33, ARTICLE_34));
-        givenModelReplies("{\"answer\": \"Within 72 hours.\", \"articles\": [33, 32]}");
+        givenModelReplies("{\"answer\": \"Within 72 hours.\", \"sources\": ["
+                + "{\"document\": \"GDPR\", \"article\": 33}, {\"document\": \"GDPR\", \"article\": 32}]}");
 
         // When
         AnswerResponse answerResponse = answerService.answer("test question").response();
@@ -96,7 +99,7 @@ class AnswerServiceImplTest {
     void shouldReturnNotCoveredWithEmptySourcesWhenNoCitedArticleWasRetrieved() {
         // Given
         when(retrievalService.search(anyString())).thenReturn(List.of(ARTICLE_33, ARTICLE_34));
-        givenModelReplies("{\"answer\": \"Paris.\", \"articles\": [99]}");
+        givenModelReplies("{\"answer\": \"Paris.\", \"sources\": [{\"document\": \"GDPR\", \"article\": 99}]}");
 
         // When
         AnswerResponse answerResponse = answerService.answer("test question").response();
@@ -110,13 +113,28 @@ class AnswerServiceImplTest {
     void shouldMapValidCitationToSourceAndKeepModelAnswer() {
         // Given
         when(retrievalService.search(anyString())).thenReturn(List.of(ARTICLE_33, ARTICLE_34));
-        givenModelReplies("{\"answer\": \"Within 72 hours.\", \"articles\": [33]}");
+        givenModelReplies("{\"answer\": \"Within 72 hours.\", \"sources\": [{\"document\": \"GDPR\", \"article\": 33}]}");
 
         // When
         AnswerResponse answerResponse = answerService.answer("test question").response();
 
         // Then
         assertEquals("Within 72 hours.", answerResponse.answer());
+        assertEquals(List.of(new Source("GDPR", "Article 33",
+                "Notification of a personal data breach to the supervisory authority")), answerResponse.sources());
+    }
+
+    @Test
+    void shouldDropCitationWhoseNumberWasRetrievedButFromAnotherDocument() {
+        // Given
+        when(retrievalService.search(anyString())).thenReturn(List.of(ARTICLE_33, AI_ACT_ARTICLE_5));
+        givenModelReplies("{\"answer\": \"Within 72 hours.\", \"sources\": ["
+                + "{\"document\": \"GDPR\", \"article\": 5}, {\"document\": \"GDPR\", \"article\": 33}]}");
+
+        // When
+        AnswerResponse answerResponse = answerService.answer("test question").response();
+
+        // Then
         assertEquals(List.of(new Source("GDPR", "Article 33",
                 "Notification of a personal data breach to the supervisory authority")), answerResponse.sources());
     }
