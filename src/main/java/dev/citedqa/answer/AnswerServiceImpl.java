@@ -38,7 +38,8 @@ public class AnswerServiceImpl implements AnswerService {
             1. Use only the text of those articles. Do not use outside knowledge.
             2. In "sources", list each article your answer is based on: "document" exactly as written in its label,
                and "article" as its number.
-            3. If the articles do not answer the question, say so in "answer" and return an empty "sources" list.
+            3. If at least one article answers the question, even in part, answer from it and cite it.
+               Return an empty "sources" list only when none of the articles answers the question, and say so in "answer".
             """;
 
     private static final String USER_TEMPLATE = """

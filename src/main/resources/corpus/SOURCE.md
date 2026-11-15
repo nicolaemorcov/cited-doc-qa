@@ -18,3 +18,6 @@
 - Version: Official Journal text, OJ L, 2024/1689, 12.7.2024 (document `L_202401689EN`)
 - Recitals and annexes are in the file but are not loaded (the loader reads only between the start and end markers)
 - The title of Article 1 reads "Subject matter`" with a trailing backtick in the official text; kept as published
+- Corrected 2026-11-15: Article 51(2) read "greater than 1025" because the browser copy flattened the superscript; the
+  official text has 10 with superscript 25. Written as "10^25". It is the only non-footnote superscript in the act
+  (checked in the source XHTML, class `oj-super`).

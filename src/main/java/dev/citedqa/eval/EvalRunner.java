@@ -32,6 +32,7 @@ import tools.jackson.databind.json.JsonMapper;
  * Runs eval/questions.json through AnswerService and writes eval/report.md.
  * Active only under the "eval" profile, so it never runs in normal starts or in mvn test.
  * The report identifies questions by id only; question text is never written out.
+ * A hand-written section that starts with NOTES_HEADING is carried over from the previous report.
  */
 @Component
 @Profile("eval")
@@ -42,6 +43,8 @@ public class EvalRunner implements ApplicationRunner {
     private static final Path QUESTIONS_FILE = Path.of("eval", "questions.json");
     private static final Path REPORT_FILE = Path.of("eval", "report.md");
     private static final String SECTION_PREFIX = "Article ";
+    private static final String UNCOVERED_GROUP = "uncovered";
+    private static final String NOTES_HEADING = "## Notes (hand-written, kept by EvalRunner)";
 
     private final AnswerService answerService;
     private final JsonMapper jsonMapper;
@@ -64,7 +67,7 @@ public class EvalRunner implements ApplicationRunner {
         for (EvalQuestion evalQuestion : evalQuestions) {
             evalResults.add(evaluate(evalQuestion));
         }
-        String report = buildReport(evalResults);
+        String report = buildReport(evalResults) + keptNotes();
         Files.writeString(REPORT_FILE, report, StandardCharsets.UTF_8);
         log.info("Eval report written to {}\n{}", REPORT_FILE, report);
 
@@ -72,6 +75,19 @@ public class EvalRunner implements ApplicationRunner {
         if (failedCount > 0) {
             throw new IllegalStateException(failedCount + " eval question(s) failed; see " + REPORT_FILE);
         }
+    }
+
+    /**
+     * Returns the hand-written notes section of the existing report, from NOTES_HEADING
+     * to the end, or an empty string when there is no report or no such section.
+     */
+    private String keptNotes() throws IOException {
+        if (!Files.exists(REPORT_FILE)) {
+            return "";
+        }
+        String existingReport = Files.readString(REPORT_FILE, StandardCharsets.UTF_8);
+        int notesIndex = existingReport.indexOf(NOTES_HEADING);
+        return notesIndex < 0 ? "" : "\n" + existingReport.substring(notesIndex);
     }
 
     private List<EvalQuestion> readQuestions() throws IOException {
@@ -82,8 +98,11 @@ public class EvalRunner implements ApplicationRunner {
     }
 
     private EvalResult evaluate(EvalQuestion evalQuestion) {
-        List<Integer> expected = evalQuestion.expected().stream().map(ExpectedSource::article).toList();
+        List<String> expected = evalQuestion.expected().stream()
+                .map(expectedSource -> label(expectedSource.document(), expectedSource.article()))
+                .toList();
         boolean uncovered = expected.isEmpty();
+        String group = uncovered ? UNCOVERED_GROUP : evalQuestion.expected().get(0).document();
         try {
             AnswerResult answerResult = answerService.answer(evalQuestion.question());
             List<Source> sources = answerResult.response().sources();
@@ -93,18 +112,26 @@ public class EvalRunner implements ApplicationRunner {
             boolean citationHit = uncovered ? sources.isEmpty() : evalQuestion.expected().stream()
                     .anyMatch(expectedSource -> sources.stream()
                             .anyMatch(source -> matches(expectedSource, source)));
-            return new EvalResult(evalQuestion.id(), evalQuestion.type(), expected,
-                    answerResult.retrievedArticles().stream().map(Article::number).toList(),
-                    sources.stream().map(source -> source.section().replace(SECTION_PREFIX, "")).toList(),
+            return new EvalResult(evalQuestion.id(), evalQuestion.type(), group, expected,
+                    answerResult.retrievedArticles().stream()
+                            .map(article -> label(article.document(), article.number()))
+                            .toList(),
+                    sources.stream()
+                            .map(source -> label(source.document(), source.section().replace(SECTION_PREFIX, "")))
+                            .toList(),
                     retrievalHit, citationHit,
                     answerResult.promptTokens(), answerResult.completionTokens(), answerResult.costEur(), null);
         } catch (RuntimeException runtimeException) {
             // Only the exception class is recorded: provider error messages are not shown, to keep any request content out of files.
             log.error("Eval question {} failed with {}", evalQuestion.id(), runtimeException.getClass().getName());
-            return new EvalResult(evalQuestion.id(), evalQuestion.type(), expected, List.of(), List.of(),
+            return new EvalResult(evalQuestion.id(), evalQuestion.type(), group, expected, List.of(), List.of(),
                     uncovered ? null : Boolean.FALSE, false, null, null, null,
                     runtimeException.getClass().getSimpleName());
         }
+    }
+
+    private String label(String document, Object number) {
+        return document + " " + number;
     }
 
     private boolean matches(ExpectedSource expectedSource, Article article) {
@@ -148,6 +175,23 @@ public class EvalRunner implements ApplicationRunner {
         report.append("| Citation: an expected article is in `sources`; for uncovered questions, `sources` is empty | **")
                 .append(citationHits).append('/').append(evalResults.size()).append("** |\n\n");
 
+        report.append("## Scores by document\n\n");
+        report.append("| Group | Questions | Retrieval | Citation |\n|---|---|---|---|\n");
+        for (Map.Entry<String, List<EvalResult>> entry : resultsByGroup(evalResults).entrySet()) {
+            List<EvalResult> groupResults = entry.getValue();
+            long groupRetrievalHits = groupResults.stream()
+                    .filter(evalResult -> Boolean.TRUE.equals(evalResult.retrievalHit()))
+                    .count();
+            long groupCitationHits = groupResults.stream().filter(EvalResult::citationHit).count();
+            report.append("| ").append(entry.getKey())
+                    .append(" | ").append(groupResults.size())
+                    .append(" | ").append(UNCOVERED_GROUP.equals(entry.getKey())
+                            ? "n/a" : groupRetrievalHits + "/" + groupResults.size())
+                    .append(" | ").append(groupCitationHits).append('/').append(groupResults.size())
+                    .append(" |\n");
+        }
+        report.append('\n');
+
         report.append("## Citation score by question type\n\n");
         report.append("| Type | Citation hits |\n|---|---|\n");
         for (Map.Entry<String, List<EvalResult>> entry : resultsByType.entrySet()) {
@@ -185,6 +229,19 @@ public class EvalRunner implements ApplicationRunner {
                     .append(" |\n");
         }
         return report.toString();
+    }
+
+    /**
+     * Groups results by expected document in order of first appearance, with "uncovered" last.
+     */
+    private Map<String, List<EvalResult>> resultsByGroup(List<EvalResult> evalResults) {
+        Map<String, List<EvalResult>> resultsByGroup = evalResults.stream()
+                .collect(Collectors.groupingBy(EvalResult::group, LinkedHashMap::new, Collectors.toList()));
+        List<EvalResult> uncoveredResults = resultsByGroup.remove(UNCOVERED_GROUP);
+        if (uncoveredResults != null) {
+            resultsByGroup.put(UNCOVERED_GROUP, uncoveredResults);
+        }
+        return resultsByGroup;
     }
 
     private String join(List<?> values) {
