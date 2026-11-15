@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 
 import dev.citedqa.corpus.Article;
 import dev.citedqa.cost.CostCalculator;
+import dev.citedqa.privacy.PiiMasker;
 import dev.citedqa.retrieval.RetrievalService;
 import dev.citedqa.web.AnswerResponse;
 import dev.citedqa.web.Source;
@@ -46,29 +47,36 @@ public class AnswerServiceImpl implements AnswerService {
             Question: {question}
             """;
 
+    private final PiiMasker piiMasker;
     private final RetrievalService retrievalService;
     private final ChatClient chatClient;
     private final CostCalculator costCalculator;
 
-    public AnswerServiceImpl(RetrievalService retrievalService, ChatClient.Builder chatClientBuilder,
-                             CostCalculator costCalculator) {
+    public AnswerServiceImpl(PiiMasker piiMasker, RetrievalService retrievalService,
+                             ChatClient.Builder chatClientBuilder, CostCalculator costCalculator) {
+        this.piiMasker = piiMasker;
         this.retrievalService = retrievalService;
         this.chatClient = chatClientBuilder.build();
         this.costCalculator = costCalculator;
     }
 
+    /**
+     * Masking is the first line: both the embedding call (inside search) and the
+     * chat call send the question to the provider, so both get the masked text.
+     */
     @Override
     public AnswerResult answer(String question) {
+        String maskedQuestion = piiMasker.mask(question);
         long startNanos = System.nanoTime();
         String requestId = UUID.randomUUID().toString();
-        List<Article> articles = retrievalService.search(question);
+        List<Article> articles = retrievalService.search(maskedQuestion);
 
         ResponseEntity<ChatResponse, ModelAnswer> responseEntity = chatClient.prompt()
                 .advisors(AdvisorParams.ENABLE_NATIVE_STRUCTURED_OUTPUT)
                 .system(SYSTEM_PROMPT)
                 .user(userSpec -> userSpec.text(USER_TEMPLATE)
                         .param("articles", formatArticles(articles))
-                        .param("question", question))
+                        .param("question", maskedQuestion))
                 .call()
                 .responseEntity(ModelAnswer.class);
         ModelAnswer modelAnswer = responseEntity.entity();

@@ -1,9 +1,11 @@
 package dev.citedqa.answer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -12,12 +14,14 @@ import java.util.List;
 import dev.citedqa.corpus.Article;
 import dev.citedqa.cost.CostCalculator;
 import dev.citedqa.cost.CostCalculatorImpl;
+import dev.citedqa.privacy.PiiMaskerImpl;
 import dev.citedqa.retrieval.RetrievalService;
 import dev.citedqa.web.AnswerResponse;
 import dev.citedqa.web.Source;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.chat.client.ChatClient;
@@ -47,7 +51,31 @@ class AnswerServiceImplTest {
     @BeforeEach
     void setUp() {
         CostCalculator costCalculator = new CostCalculatorImpl(new BigDecimal("0.13"), new BigDecimal("0.51"));
-        answerService = new AnswerServiceImpl(retrievalService, ChatClient.builder(chatModel), costCalculator);
+        answerService = new AnswerServiceImpl(new PiiMaskerImpl(), retrievalService, ChatClient.builder(chatModel),
+                costCalculator);
+    }
+
+    @Test
+    void shouldMaskEmailBeforeEmbeddingAndChatCalls() {
+        // Given
+        when(retrievalService.search(anyString())).thenReturn(List.of(ARTICLE_33, ARTICLE_34));
+        givenModelReplies("{\"answer\": \"Within 72 hours.\", \"articles\": [33]}");
+        String email = "ana.rusu@example.md";
+
+        // When
+        answerService.answer("I am " + email + ", how long do I have to report a breach?");
+
+        // Then
+        ArgumentCaptor<String> searchCaptor = ArgumentCaptor.forClass(String.class);
+        verify(retrievalService).search(searchCaptor.capture());
+        ArgumentCaptor<Prompt> promptCaptor = ArgumentCaptor.forClass(Prompt.class);
+        verify(chatModel).call(promptCaptor.capture());
+        String searchText = searchCaptor.getValue();
+        String userText = promptCaptor.getValue().getUserMessage().getText();
+        assertTrue(searchText.contains("[EMAIL]"), "embedding input has no [EMAIL] tag");
+        assertFalse(searchText.contains(email), "embedding input contains the address");
+        assertTrue(userText.contains("[EMAIL]"), "chat input has no [EMAIL] tag");
+        assertFalse(userText.contains(email), "chat input contains the address");
     }
 
     @Test
